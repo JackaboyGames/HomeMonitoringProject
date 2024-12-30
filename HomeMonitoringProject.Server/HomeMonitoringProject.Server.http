@@ -1,0 +1,6 @@
+@HomeMonitoringProject.Server_HostAddress = http://localhost:5289
+
+GET {{HomeMonitoringProject.Server_HostAddress}}/api/sensordata/
+Accept: application/json
+
+###

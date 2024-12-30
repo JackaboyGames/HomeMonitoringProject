@@ -1,0 +1,85 @@
+<h1>Home Monitoring</h1>
+<div>
+  <h2>Manage Data</h2>
+  <button (click)="clearAllData()">Clear All Data</button>
+</div>
+<div>
+  <h2>Refresh</h2>
+  <button (click)="refreshData()">Refresh Data</button>
+</div>
+
+<div *ngIf="latestData; else loading">
+  <h2>Latest Data</h2>
+  <p>Date & Time: {{ latestData.dateTime }}</p>
+  <p>Temperature: {{ latestData.temperature }} °C</p>
+  <p>Humidity: {{ latestData.humidity }} %</p>
+  <p>Air Quality: {{ latestData.airQuality }}</p>
+</div>
+
+<ng-template #loading>
+  <p>Loading latest data...</p>
+</ng-template>
+
+<div>
+  <h2>Statistics (Last 24 Hours)</h2>
+  <p *ngIf="!statistics">Loading statistics...</p>
+  <div *ngIf="statistics" style="display: flex; gap: 20px;">
+    <table *ngFor="let key of ['temperature', 'humidity', 'airQuality']" [ngIf]="statistics[key]">
+      <thead>
+        <tr>
+          <th>{{ key.charAt(0).toUpperCase() + key.slice(1) }} Statistics</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Mean</td>
+          <td>{{ statistics[key].mean }}</td>
+        </tr>
+        <tr>
+          <td>Median</td>
+          <td>{{ statistics[key].median }}</td>
+        </tr>
+        <tr>
+          <td>Mode</td>
+          <td>{{ statistics[key].mode }}</td>
+        </tr>
+        <tr>
+          <td>Range</td>
+          <td>{{ statistics[key].range }}</td>
+        </tr>
+        <tr>
+          <td>Min</td>
+          <td>{{ statistics[key].min }}</td>
+        </tr>
+        <tr>
+          <td>Max</td>
+          <td>{{ statistics[key].max }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div>
+  <h2>Last 24 Hours</h2>
+  <p *ngIf="!sensorDataList.length">No data available.</p>
+  <table *ngIf="sensorDataList.length">
+    <thead>
+      <tr>
+        <th>Date & Time</th>
+        <th>Temperature (°C)</th>
+        <th>Humidity (%)</th>
+        <th>Air Quality</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let data of sensorDataList">
+        <td>{{ data.dateTime }}</td>
+        <td>{{ data.temperature }}</td>
+        <td>{{ data.humidity }}</td>
+        <td>{{ data.airQuality }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
