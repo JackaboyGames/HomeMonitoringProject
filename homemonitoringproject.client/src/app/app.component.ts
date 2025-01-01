@@ -1,8 +1,9 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { interval, Subscription } from 'rxjs';
 import { ChartConfiguration, ChartData, registerables, Chart } from 'chart.js';
 import 'chartjs-adapter-date-fns';
+import { BaseChartDirective } from 'ng2-charts';
 
 type StatsKey = 'temperature' | 'humidity' | 'airQuality';
 
@@ -42,6 +43,10 @@ export class AppComponent implements OnInit {
 
   private pollingSubscription: Subscription | null = null;
 
+  @ViewChild('temperatureChart') temperatureChart?: BaseChartDirective;
+  @ViewChild('humidityChart') humidityChart?: BaseChartDirective;
+  @ViewChild('airQualityChart') airQualityChart?: BaseChartDirective;
+
   public temperatureChartData: ChartData<'line'> = {
     labels: [],
     datasets: [
@@ -52,7 +57,7 @@ export class AppComponent implements OnInit {
         borderWidth: 2,
         tension: 0.4,
         pointBackgroundColor: 'red',
-        pointRadius: 4,
+        pointRadius: 1,
         fill: false,
       },
     ],
@@ -68,7 +73,7 @@ export class AppComponent implements OnInit {
         borderWidth: 2,
         tension: 0.4,
         pointBackgroundColor: 'blue',
-        pointRadius: 4,
+        pointRadius: 1,
         fill: false,
       },
     ],
@@ -84,7 +89,7 @@ export class AppComponent implements OnInit {
         borderWidth: 2,
         tension: 0.4,
         pointBackgroundColor: 'green',
-        pointRadius: 4,
+        pointRadius: 1,
         fill: false,
       },
     ],
@@ -125,6 +130,10 @@ export class AppComponent implements OnInit {
 
     this.pollingSubscription = interval(2000).subscribe(() => {
       this.fetchLatestData();
+    });
+
+    interval(60000).subscribe(() => {
+      this.fetchLast24Hours();
     });
   }
 
@@ -169,6 +178,10 @@ export class AppComponent implements OnInit {
         this.temperatureChartData.datasets[0].data = temperatureData;
         this.humidityChartData.datasets[0].data = humidityData;
         this.airQualityChartData.datasets[0].data = airQualityData;
+
+        this.temperatureChart?.update();
+        this.humidityChart?.update();
+        this.airQualityChart?.update();
       },
       (error) => {
         console.error('Error fetching last 24 hours data:', error);

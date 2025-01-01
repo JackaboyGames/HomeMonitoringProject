@@ -1,0 +1,268 @@
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <DHT_U.h>
+#include <Wire.h>
+#include <LiquidCrystal_PCF8574.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+
+// Wi-Fi credentials
+const char* ssid = "TP-Link_Extender"; 
+const char* password = "hellothere";
+
+// Defined thresholds
+const float TEMP_THRESHOLD_MIN = 18.0;  // Minimum acceptable temperature (°C)
+const float TEMP_THRESHOLD_MAX = 23.0; // Maximum acceptable temperature (°C)
+const float HUM_THRESHOLD_MIN = 30.0;  // Minimum acceptable humidity (%)
+const float HUM_THRESHOLD_MAX = 65.0;  // Maximum acceptable humidity (%)
+const int AIR_QUALITY_THRESHOLD = 400; // Maximum acceptable air quality value (raw)
+
+bool isRedState = false;              // Tracks if the system is currently in the red state
+bool isTemperatureGood = false;       // Tracks if the temperature is within thresholds
+bool isHumidityGood = false;          // Tracks if the humidity is within thresholds
+bool isAirQualityGood = false;        // Tracks if the air quality is within thresholds
+bool isGoodState = false;             // Tracks overall system state (green or red)
+
+float temperature = 0.0;
+float humidity = 0.0;
+int airQualityValue = 0;
+
+static float prevTemp = -1.0;
+static float prevHum = -1.0;
+static int prevAirQuality = -1;
+
+// Defined GPIO pins for components
+#define RED_LED_PIN 25            // Red LED
+#define GREEN_LED_PIN 33          // Green LED
+#define TEMP_HUM_SENSOR_PIN 5     // Temperature and Humidity Sensor
+#define AIR_QUALITY_SENSOR_PIN 36 // Air Quality Sensor AO
+#define PASSIVE_BUZZER_PIN 21     // Passive Buzzer
+#define LCD_SDA_PIN 27            // LCD SDA (Data Line)
+#define LCD_SCL_PIN 26            // LCD SCL (Clock Line)
+
+// DHT Sensor configuration
+#define DHT_TYPE DHT22 
+DHT dht(TEMP_HUM_SENSOR_PIN, DHT_TYPE);
+
+// LCD configuration
+LiquidCrystal_PCF8574 lcd(0x27);
+
+void syncTime() {
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov"); // NTP server for time sync
+  Serial.print("Waiting for NTP time sync");
+  while (time(nullptr) < 10) {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println("\nTime synchronised");
+}
+
+void updateSensorReadings() {
+  temperature = dht.readTemperature();
+  humidity = dht.readHumidity();
+  airQualityValue = analogRead(AIR_QUALITY_SENSOR_PIN);
+}
+
+// Updates the state of each sensor and overall state
+void updateState() {
+  isTemperatureGood = !isnan(temperature) && (temperature >= TEMP_THRESHOLD_MIN && temperature <= TEMP_THRESHOLD_MAX);
+  isHumidityGood = !isnan(humidity) && (humidity >= HUM_THRESHOLD_MIN && humidity <= HUM_THRESHOLD_MAX);
+  isAirQualityGood = (airQualityValue <= AIR_QUALITY_THRESHOLD);
+  isGoodState = isTemperatureGood && isHumidityGood && isAirQualityGood;
+}
+
+void playBuzzerTune() {
+  tone(PASSIVE_BUZZER_PIN, 440, 200);
+  delay(200);
+  tone(PASSIVE_BUZZER_PIN, 523, 200);
+  delay(200);
+  tone(PASSIVE_BUZZER_PIN, 659, 200);
+  delay(200);
+  noTone(PASSIVE_BUZZER_PIN);
+}
+
+void connectToWiFi() {
+  // Display connecting message on LCD
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Connecting to");
+  lcd.setCursor(0, 1);
+  lcd.print("Wi-Fi...");
+  delay(100); // Small delay for LCD initialization
+  
+  Serial.print("Connecting to Wi-Fi...");
+  WiFi.begin(ssid, password);
+  int attempt = 0;
+
+  // Wait until connected or timeout after 20 attempts (~10 seconds)
+  while (WiFi.status() != WL_CONNECTED && attempt < 20) {
+    delay(500);
+    Serial.print(".");
+    lcd.setCursor(7, 1);
+    lcd.print(String(".").substring(0, attempt % 4)); // Update dots (., .., ...)
+    attempt++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWi-Fi connected!");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+
+    // Display success message on LCD
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Wi-Fi Connected!");
+    lcd.setCursor(0, 1);
+    lcd.print("IP: ");
+    lcd.print(WiFi.localIP());
+    delay(3000); // Wait 3 seconds before clearing the screen
+  } else {
+    // Connection failed
+    Serial.println("\nWi-Fi connection failed!");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Wi-Fi Failed!");
+    lcd.setCursor(0, 1);
+    lcd.print("Retry...");
+    delay(3000);
+  }
+}
+
+void sendDataToAPI(float temperature, float humidity, int airQuality) {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    String serverUrl = "https://192.168.0.84:7187/api/sensordata";
+    http.begin(serverUrl);
+
+    http.addHeader("Content-Type", "application/json");
+
+    String dateTime = getFormattedDateTime();
+
+    // Create JSON payload
+    String jsonPayload = "{";
+    jsonPayload += "\"temperature\":" + String(temperature, 2) + ",";
+    jsonPayload += "\"humidity\":" + String(humidity, 2) + ",";
+    jsonPayload += "\"airQuality\":" + String(airQuality) + ",";
+    jsonPayload += "\"datetime\":\"" + dateTime + "\"";
+    jsonPayload += "}";
+    Serial.println(jsonPayload);
+    // Send POST request
+    int httpResponseCode = http.POST(jsonPayload);
+
+    if (httpResponseCode > 0) {
+      Serial.print("HTTP Response code: ");
+      Serial.println(httpResponseCode);
+    } else {
+      Serial.print("Error sending POST: ");
+      Serial.println(http.errorToString(httpResponseCode).c_str());
+    }
+
+    http.end();
+  } else {
+    Serial.println("Wi-Fi not connected, cannot send data.");
+  }
+}
+
+String getFormattedDateTime() {
+  time_t now = time(nullptr);
+  struct tm* timeInfo = localtime(&now);
+  char buffer[30];
+  strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", timeInfo);
+  return String(buffer);
+}
+
+void setup() {
+  // Initialize Serial Monitor
+  Serial.begin(9600);
+
+  Wire.begin(LCD_SDA_PIN, LCD_SCL_PIN); // Set SDA and SCL pins for ESP32
+  // Initialize LCD with 16x2 dimensions
+  lcd.begin(16, 2);
+  lcd.setBacklight(255);
+  lcd.setCursor(0, 0);
+  // Initialize LEDs
+  pinMode(RED_LED_PIN, OUTPUT);
+  pinMode(GREEN_LED_PIN, OUTPUT);
+  
+  updateSensorReadings();
+
+  // Determine initial state
+  updateState();
+
+  connectToWiFi();
+
+  syncTime();
+
+  // Set initial LED state
+  if (isGoodState) {
+    digitalWrite(RED_LED_PIN, LOW);   // Turn off red LED
+    digitalWrite(GREEN_LED_PIN, HIGH); // Turn on green LED
+    isRedState = false;               // System starts in the green state
+  } else {
+    digitalWrite(GREEN_LED_PIN, LOW); // Turn off green LED
+    digitalWrite(RED_LED_PIN, HIGH);  // Turn on red LED
+    isRedState = true;                // System starts in the red state
+  }
+
+  // Initialise DHT sensor
+  dht.begin();
+
+  // Initialise Air Quality sensor pin
+  pinMode(AIR_QUALITY_SENSOR_PIN, INPUT);
+}
+
+void loop() {
+  updateSensorReadings();
+  // Update state of system
+  updateState();
+
+  // Handle state change
+  if (!isGoodState && !isRedState) {
+    // Transition to red state
+    isRedState = true;
+    digitalWrite(GREEN_LED_PIN, LOW); // Turn off green LED
+    digitalWrite(RED_LED_PIN, HIGH); // Turn on red LED
+    playBuzzerTune();
+  } else if (isGoodState && isRedState) {
+    // Transition back to green state
+    isRedState = false;
+    digitalWrite(RED_LED_PIN, LOW);  // Turn off red LED
+    digitalWrite(GREEN_LED_PIN, HIGH); // Turn on green LED
+  }
+
+  // Log readings to Serial Monitor
+  Serial.print("Temp: ");
+  Serial.print(temperature);
+  Serial.println(" °C");
+
+  Serial.print("Hum: ");
+  Serial.print(humidity);
+  Serial.println(" %");
+
+  Serial.print("Air Quality: ");
+  Serial.println(airQualityValue);
+
+  sendDataToAPI(temperature, humidity, airQualityValue);
+
+  // Display readings on LCD
+  if (temperature != prevTemp || humidity != prevHum || airQualityValue != prevAirQuality) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("T:");
+    lcd.print(temperature, 1);
+    lcd.print("C H:");
+    lcd.print(humidity, 1);
+    lcd.print("%");
+
+    lcd.setCursor(0, 1);
+    lcd.print("AQ:");
+    lcd.print(airQualityValue);
+
+    // Update previous values
+    prevTemp = temperature;
+    prevHum = humidity;
+    prevAirQuality = airQualityValue;
+  }
+
+  delay(2000); // Wait 2 seconds before the next reading
+}
