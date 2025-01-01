@@ -1,6 +1,10 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { interval, Subscription } from 'rxjs';
+import { ChartConfiguration, ChartData, registerables, Chart } from 'chart.js';
+import 'chartjs-adapter-date-fns';
+
+type StatsKey = 'temperature' | 'humidity' | 'airQuality';
 
 interface SensorData {
   dateTime: string; 
@@ -34,10 +38,85 @@ export class AppComponent implements OnInit {
   public latestData: SensorData | null = null;
   public sensorDataList: SensorData[] = [];
   public statistics: Stats | null = null;
+  public statsKeys: StatsKey[] = ['temperature', 'humidity', 'airQuality'];
 
   private pollingSubscription: Subscription | null = null;
 
-  constructor(private http: HttpClient) {}
+  public temperatureChartData: ChartData<'line'> = {
+    labels: [],
+    datasets: [
+      {
+        data: [],
+        label: 'Temperature (°C)',
+        borderColor: 'red',
+        borderWidth: 2,
+        tension: 0.4,
+        pointBackgroundColor: 'red',
+        pointRadius: 4,
+        fill: false,
+      },
+    ],
+  };
+
+  public humidityChartData: ChartData<'line'> = {
+    labels: [],
+    datasets: [
+      {
+        data: [], 
+        label: 'Humidity (%)',
+        borderColor: 'blue',
+        borderWidth: 2,
+        tension: 0.4,
+        pointBackgroundColor: 'blue',
+        pointRadius: 4,
+        fill: false,
+      },
+    ],
+  };
+
+  public airQualityChartData: ChartData<'line'> = {
+    labels: [],
+    datasets: [
+      {
+        data: [],
+        label: 'Air Quality',
+        borderColor: 'green',
+        borderWidth: 2,
+        tension: 0.4,
+        pointBackgroundColor: 'green',
+        pointRadius: 4,
+        fill: false,
+      },
+    ],
+  };
+
+  public chartOptions: ChartConfiguration['options'] = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top',
+      },
+    },
+    scales: {
+      x: {
+        type: 'time',
+        time: {
+          unit: 'hour',
+          tooltipFormat: 'HH:mm:ss',
+          displayFormats: {
+            hour: 'HH:mm',
+          },
+        },
+      },
+      y: {
+        beginAtZero: true,
+      },
+    },
+  };
+
+  constructor(private http: HttpClient) {
+    Chart.register(...registerables);
+  }
 
   ngOnInit() {
     this.fetchLatestData();
@@ -70,6 +149,26 @@ export class AppComponent implements OnInit {
     this.http.get<SensorData[]>('/api/sensordata/last24hours').subscribe(
       (result) => {
         this.sensorDataList = result;
+
+        const temperatureData: number[] = [];
+        const humidityData: number[] = [];
+        const airQualityData: number[] = [];
+        const labels: string[] = [];
+
+        result.forEach((data) => {
+          temperatureData.push(data.temperature);
+          humidityData.push(data.humidity);
+          airQualityData.push(data.airQuality);
+          labels.push(data.dateTime);
+        });
+
+        this.temperatureChartData.labels = labels;
+        this.humidityChartData.labels = labels;
+        this.airQualityChartData.labels = labels;
+
+        this.temperatureChartData.datasets[0].data = temperatureData;
+        this.humidityChartData.datasets[0].data = humidityData;
+        this.airQualityChartData.datasets[0].data = airQualityData;
       },
       (error) => {
         console.error('Error fetching last 24 hours data:', error);
@@ -88,6 +187,13 @@ export class AppComponent implements OnInit {
     );
   }
 
+  getStatisticValue(key: StatsKey, field: keyof StatsDetails): number | undefined {
+    if (this.statistics) {
+      return this.statistics[key]?.[field];
+    }
+    return undefined;
+  }
+
   refreshData() {
     this.fetchLatestData();
     this.fetchLast24Hours();
@@ -104,7 +210,6 @@ export class AppComponent implements OnInit {
 
     this.http.post('/api/sensordata', fudgeData).subscribe(
       () => {
-        console.log('Fudge data posted successfully.');
         this.fetchLatestData(); 
         this.fetchLast24Hours(); 
         this.fetchStats(); 
