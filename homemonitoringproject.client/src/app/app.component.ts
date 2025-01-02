@@ -1,9 +1,8 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { interval, Subscription } from 'rxjs';
 import { ChartConfiguration, ChartData, registerables, Chart } from 'chart.js';
 import 'chartjs-adapter-date-fns';
-import { BaseChartDirective } from 'ng2-charts';
 
 type StatsKey = 'temperature' | 'humidity' | 'airQuality';
 
@@ -41,11 +40,11 @@ export class AppComponent implements OnInit {
   public statistics: Stats | null = null;
   public statsKeys: StatsKey[] = ['temperature', 'humidity', 'airQuality'];
 
-  private pollingSubscription: Subscription | null = null;
+  public temperatureChart?: Chart;
+  public humidityChart?: Chart;
+  public airQualityChart?: Chart;
 
-  @ViewChild('temperatureChart') temperatureChart?: BaseChartDirective;
-  @ViewChild('humidityChart') humidityChart?: BaseChartDirective;
-  @ViewChild('airQualityChart') airQualityChart?: BaseChartDirective;
+  private pollingSubscription: Subscription | null = null;
 
   public temperatureChartData: ChartData<'line'> = {
     labels: [],
@@ -124,6 +123,7 @@ export class AppComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.initialiseCharts();
     this.fetchLatestData();
     this.fetchLast24Hours();
     this.fetchStats();
@@ -134,12 +134,152 @@ export class AppComponent implements OnInit {
 
     interval(60000).subscribe(() => {
       this.fetchLast24Hours();
+      this.fetchStats(); 
     });
   }
 
   ngOnDestroy() {
     if (this.pollingSubscription) {
       this.pollingSubscription.unsubscribe();
+    }
+  }
+
+  initialiseCharts() {
+    const temperatureCanvas = document.getElementById('temperatureChart') as HTMLCanvasElement;
+    const humidityCanvas = document.getElementById('humidityChart') as HTMLCanvasElement;
+    const airQualityCanvas = document.getElementById('airQualityChart') as HTMLCanvasElement;
+
+    if (temperatureCanvas) {
+      this.temperatureChart = new Chart(temperatureCanvas, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Temperature (°C)',
+              data: [],
+              borderColor: 'red',
+              borderWidth: 2,
+              tension: 0.4,
+              pointBackgroundColor: 'red',
+              pointRadius: 1,
+              fill: false,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+          },
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                unit: 'hour',
+                tooltipFormat: 'HH:mm:ss',
+                displayFormats: {
+                  hour: 'HH:mm',
+                },
+              },
+            },
+            y: {
+              beginAtZero: true,
+            },
+          },
+        },
+      });
+    }
+
+    if (humidityCanvas) {
+      this.humidityChart = new Chart(humidityCanvas, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Humidity (%)',
+              data: [],
+              borderColor: 'blue',
+              borderWidth: 2,
+              tension: 0.4,
+              pointBackgroundColor: 'blue',
+              pointRadius: 1,
+              fill: false,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+          },
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                unit: 'hour',
+                tooltipFormat: 'HH:mm:ss',
+                displayFormats: {
+                  hour: 'HH:mm',
+                },
+              },
+            },
+            y: {
+              beginAtZero: true,
+            },
+          },
+        },
+      });
+    }
+
+    if (airQualityCanvas) {
+      this.airQualityChart = new Chart(airQualityCanvas, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Air Quality',
+              data: [],
+              borderColor: 'green',
+              borderWidth: 2,
+              tension: 0.4,
+              pointBackgroundColor: 'green',
+              pointRadius: 1,
+              fill: false,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+          },
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                unit: 'hour',
+                tooltipFormat: 'HH:mm:ss',
+                displayFormats: {
+                  hour: 'HH:mm',
+                },
+              },
+            },
+            y: {
+              beginAtZero: true,
+            },
+          },
+        },
+
+        });
     }
   }
 
@@ -171,17 +311,23 @@ export class AppComponent implements OnInit {
           labels.push(data.dateTime);
         });
 
-        this.temperatureChartData.labels = labels;
-        this.humidityChartData.labels = labels;
-        this.airQualityChartData.labels = labels;
+        if (this.temperatureChart) {
+          this.temperatureChart.data.labels = labels;
+          this.temperatureChart.data.datasets[0].data = temperatureData;
+          this.temperatureChart.update('none');
+        }
 
-        this.temperatureChartData.datasets[0].data = temperatureData;
-        this.humidityChartData.datasets[0].data = humidityData;
-        this.airQualityChartData.datasets[0].data = airQualityData;
+        if (this.humidityChart) {
+          this.humidityChart.data.labels = labels;
+          this.humidityChart.data.datasets[0].data = humidityData;
+          this.humidityChart.update('none');
+        }
 
-        this.temperatureChart?.update();
-        this.humidityChart?.update();
-        this.airQualityChart?.update();
+        if (this.airQualityChart) {
+          this.airQualityChart.data.labels = labels;
+          this.airQualityChart.data.datasets[0].data = airQualityData;
+          this.airQualityChart.update('none');
+        }
       },
       (error) => {
         console.error('Error fetching last 24 hours data:', error);
@@ -211,26 +357,6 @@ export class AppComponent implements OnInit {
     this.fetchLatestData();
     this.fetchLast24Hours();
     this.fetchStats(); 
-  }
-
-  postFudgeData() {
-    const fudgeData: SensorData = {
-      dateTime: new Date().toISOString(),
-      temperature: parseFloat((Math.random() * 10 + 20).toFixed(2)),
-      humidity: parseFloat((Math.random() * 50 + 30).toFixed(2)),
-      airQuality: parseFloat((Math.random() * 100).toFixed(2)),
-    };
-
-    this.http.post('/api/sensordata', fudgeData).subscribe(
-      () => {
-        this.fetchLatestData(); 
-        this.fetchLast24Hours(); 
-        this.fetchStats(); 
-      },
-      (error) => {
-        console.error('Error posting fudge data:', error);
-      }
-    );
   }
 
   clearAllData() {
