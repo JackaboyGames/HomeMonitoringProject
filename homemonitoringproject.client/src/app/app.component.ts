@@ -4,8 +4,10 @@ import { interval, Subscription } from 'rxjs';
 import { ChartConfiguration, ChartData, registerables, Chart } from 'chart.js';
 import 'chartjs-adapter-date-fns';
 
+// Keys for sensor statistics
 type StatsKey = 'temperature' | 'humidity' | 'airQuality';
 
+// Interface for a single sensor data record
 interface SensorData {
   dateTime: string; 
   temperature: number;
@@ -13,6 +15,7 @@ interface SensorData {
   airQuality: number;
 }
 
+// Interface for statistics of a single sensor
 interface StatsDetails {
   mean: number;
   median: number;
@@ -21,6 +24,8 @@ interface StatsDetails {
   min: number;
   max: number;
 }
+
+// Interface for statistics of all sensor types
 
 interface Stats {
   temperature: StatsDetails;
@@ -35,17 +40,28 @@ interface Stats {
   styleUrl: './app.component.css'
 })
 export class AppComponent implements OnInit {
+
+  // Latest sensor data
   public latestData: SensorData | null = null;
+
+  // Array of sensor data for the last 24 hours
   public sensorDataList: SensorData[] = [];
+
+  // Sensor statistics
   public statistics: Stats | null = null;
+
+  // Keys for different sensor types
   public statsKeys: StatsKey[] = ['temperature', 'humidity', 'airQuality'];
 
+  // Chart objects for each sensor type
   public temperatureChart?: Chart;
   public humidityChart?: Chart;
   public airQualityChart?: Chart;
 
+  // Polling subscription for data updates
   private pollingSubscription: Subscription | null = null;
 
+  // Data configuration for the temperature chart
   public temperatureChartData: ChartData<'line'> = {
     labels: [],
     datasets: [
@@ -62,6 +78,7 @@ export class AppComponent implements OnInit {
     ],
   };
 
+  // Data configuration for the humidity chart
   public humidityChartData: ChartData<'line'> = {
     labels: [],
     datasets: [
@@ -78,6 +95,7 @@ export class AppComponent implements OnInit {
     ],
   };
 
+  // Data configuration for the air quality chart
   public airQualityChartData: ChartData<'line'> = {
     labels: [],
     datasets: [
@@ -94,16 +112,17 @@ export class AppComponent implements OnInit {
     ],
   };
 
+  // Chart options shared between all charts
   public chartOptions: ChartConfiguration['options'] = {
     responsive: true,
     plugins: {
       legend: {
-        position: 'top',
+        position: 'top', // Places the legend at the top
       },
     },
     scales: {
       x: {
-        type: 'time',
+        type: 'time', // X-axis is time-based
         time: {
           unit: 'hour',
           tooltipFormat: 'HH:mm:ss',
@@ -113,11 +132,12 @@ export class AppComponent implements OnInit {
         },
       },
       y: {
-        beginAtZero: true,
+        beginAtZero: true, // Y-axis starts at 0
       },
     },
   };
 
+  // Inject HttpClient and register the Chart.js components
   constructor(private http: HttpClient) {
     Chart.register(...registerables);
   }
@@ -128,27 +148,32 @@ export class AppComponent implements OnInit {
     this.fetchLast24Hours();
     this.fetchStats();
 
+    // Poll latest data every 2 seconds
     this.pollingSubscription = interval(2000).subscribe(() => {
       this.fetchLatestData();
     });
 
+    // Fetch full data and stats every minute
     interval(60000).subscribe(() => {
       this.fetchLast24Hours();
       this.fetchStats(); 
     });
   }
 
+  // Lifecycle hook for cleanup when the component is destroyed
   ngOnDestroy() {
     if (this.pollingSubscription) {
       this.pollingSubscription.unsubscribe();
     }
   }
 
+  // Initialise the chart instances with data and configuration
   initialiseCharts() {
     const temperatureCanvas = document.getElementById('temperatureChart') as HTMLCanvasElement;
     const humidityCanvas = document.getElementById('humidityChart') as HTMLCanvasElement;
     const airQualityCanvas = document.getElementById('airQualityChart') as HTMLCanvasElement;
 
+    // Create and configure temperature chart if canvas is available
     if (temperatureCanvas) {
       this.temperatureChart = new Chart(temperatureCanvas, {
         type: 'line',
@@ -193,6 +218,7 @@ export class AppComponent implements OnInit {
       });
     }
 
+    // Create and configure humidity chart if canvas is available
     if (humidityCanvas) {
       this.humidityChart = new Chart(humidityCanvas, {
         type: 'line',
@@ -237,6 +263,7 @@ export class AppComponent implements OnInit {
       });
     }
 
+    // Create and configure air quality chart if canvas is available
     if (airQualityCanvas) {
       this.airQualityChart = new Chart(airQualityCanvas, {
         type: 'line',
@@ -283,6 +310,7 @@ export class AppComponent implements OnInit {
     }
   }
 
+  // Fetch the most recent sensor data from the API
   fetchLatestData() {
     this.http.get<SensorData>('/api/sensordata/latest').subscribe(
       (result) => {
@@ -294,6 +322,7 @@ export class AppComponent implements OnInit {
     );
   }
 
+  // Fetch sensor data for the last 24 hours from the API
   fetchLast24Hours() {
     this.http.get<SensorData[]>('/api/sensordata/last24hours').subscribe(
       (result) => {
@@ -304,6 +333,7 @@ export class AppComponent implements OnInit {
         const airQualityData: number[] = [];
         const labels: string[] = [];
 
+        // Populate the chart data and labels from API response
         result.forEach((data) => {
           temperatureData.push(data.temperature);
           humidityData.push(data.humidity);
@@ -311,18 +341,21 @@ export class AppComponent implements OnInit {
           labels.push(data.dateTime);
         });
 
+        // Update temperature chart data
         if (this.temperatureChart) {
           this.temperatureChart.data.labels = labels;
           this.temperatureChart.data.datasets[0].data = temperatureData;
           this.temperatureChart.update('none');
         }
 
+        // Update humidity chart data
         if (this.humidityChart) {
           this.humidityChart.data.labels = labels;
           this.humidityChart.data.datasets[0].data = humidityData;
           this.humidityChart.update('none');
         }
 
+        // Update air quality chart data
         if (this.airQualityChart) {
           this.airQualityChart.data.labels = labels;
           this.airQualityChart.data.datasets[0].data = airQualityData;
@@ -335,6 +368,7 @@ export class AppComponent implements OnInit {
     );
   }
 
+  // Fetch statistics for sensor data from the API
   fetchStats() {
     this.http.get<Stats>('/api/sensordata/stats').subscribe(
       (result) => {
@@ -346,6 +380,7 @@ export class AppComponent implements OnInit {
     );
   }
 
+  // Get a specific statistic value for a sensor type
   getStatisticValue(key: StatsKey, field: keyof StatsDetails): number | undefined {
     if (this.statistics) {
       return this.statistics[key]?.[field];
@@ -353,12 +388,14 @@ export class AppComponent implements OnInit {
     return undefined;
   }
 
+  // Refresh all data using relevant API calls
   refreshData() {
     this.fetchLatestData();
     this.fetchLast24Hours();
     this.fetchStats(); 
   }
 
+  // Clear all sensor data by making a DELETE request to the API
   clearAllData() {
     this.http.delete('/api/sensordata/clearall').subscribe(
       () => {
