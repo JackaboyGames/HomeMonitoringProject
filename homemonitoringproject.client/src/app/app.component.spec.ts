@@ -30,10 +30,10 @@ describe('AppComponent', () => {
 
   it('should fetch latest data and update latestData property', () => {
     const mockSensorData = {
-      dateTime: '2024-01-01T12:00:00Z',
-      temperature: 25,
+      dateTime: '2024-12-12T12:00:00Z',
+      temperature: 22,
       humidity: 50,
-      airQuality: 300,
+      airQuality: 320,
     };
 
     component.fetchLatestData();
@@ -48,32 +48,54 @@ describe('AppComponent', () => {
   it('should fetch last 24 hours data and update charts', () => {
     const mockSensorData = [
       {
-        dateTime: '2024-01-01T11:00:00Z',
+        dateTime: '2024-12-01T10:00:00Z',
         temperature: 22,
         humidity: 45,
         airQuality: 200,
       },
       {
-        dateTime: '2024-01-01T12:00:00Z',
+        dateTime: '2024-12-01T11:00:00Z',
         temperature: 23,
         humidity: 47,
         airQuality: 210,
       },
     ];
 
+    component.initialiseCharts();
+
+    const temperatureChartUpdateSpy = spyOn(component.temperatureChart!, 'update').and.callThrough();
+    const humidityChartUpdateSpy = spyOn(component.humidityChart!, 'update').and.callThrough();
+    const airQualityChartUpdateSpy = spyOn(component.airQualityChart!, 'update').and.callThrough();
+
     component.fetchLast24Hours();
+
     const req = httpMock.expectOne('/api/sensordata/last24hours');
     expect(req.request.method).toBe('GET');
     req.flush(mockSensorData);
 
     expect(component.sensorDataList).toEqual(mockSensorData);
-    expect(component.temperatureChartData.labels).toEqual([
-      '2024-01-01T11:00:00Z',
-      '2024-01-01T12:00:00Z',
+
+    expect(component.temperatureChart!.data.labels).toEqual([
+      '2024-12-01T10:00:00Z',
+      '2024-12-01T11:00:00Z',
     ]);
-    expect(component.temperatureChartData.datasets[0].data).toEqual([22, 23]);
-    expect(component.humidityChartData.datasets[0].data).toEqual([45, 47]);
-    expect(component.airQualityChartData.datasets[0].data).toEqual([200, 210]);
+    expect(component.temperatureChart!.data.datasets[0].data).toEqual([22, 23]);
+
+    expect(component.humidityChart!.data.labels).toEqual([
+      '2024-12-01T10:00:00Z',
+      '2024-12-01T11:00:00Z',
+    ]);
+    expect(component.humidityChart!.data.datasets[0].data).toEqual([45, 47]);
+
+    expect(component.airQualityChart!.data.labels).toEqual([
+      '2024-12-01T10:00:00Z',
+      '2024-12-01T11:00:00Z',
+    ]);
+    expect(component.airQualityChart!.data.datasets[0].data).toEqual([200, 210]);
+
+    expect(temperatureChartUpdateSpy).toHaveBeenCalledWith('none');
+    expect(humidityChartUpdateSpy).toHaveBeenCalledWith('none');
+    expect(airQualityChartUpdateSpy).toHaveBeenCalledWith('none');
   });
 
   it('should fetch statistics and update the statistics property', () => {
