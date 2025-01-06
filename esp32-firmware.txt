@@ -11,8 +11,8 @@ const char* ssid = "TP-Link_Extender";
 const char* password = "hellothere";
 
 // Defined thresholds
-const float TEMP_THRESHOLD_MIN = 18.0;  // Minimum acceptable temperature (Â°C)
-const float TEMP_THRESHOLD_MAX = 23.0; // Maximum acceptable temperature (Â°C)
+const float TEMP_THRESHOLD_MIN = 18.0;  // Minimum acceptable temperature (°C)
+const float TEMP_THRESHOLD_MAX = 23.0; // Maximum acceptable temperature (°C)
 const float HUM_THRESHOLD_MIN = 30.0;  // Minimum acceptable humidity (%)
 const float HUM_THRESHOLD_MAX = 65.0;  // Maximum acceptable humidity (%)
 const int AIR_QUALITY_THRESHOLD = 400; // Maximum acceptable air quality value (raw)
@@ -209,6 +209,15 @@ void setup() {
 
   // Initialise Air Quality sensor pin
   pinMode(AIR_QUALITY_SENSOR_PIN, INPUT);
+
+  // Wait 4 minutes to let the MQ-135 sensor stabilise
+  Serial.println("Waiting for MQ-135 to stabilise");
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Stabilising");
+  lcd.setCursor(0, 1);
+  lcd.print("Please wait...");
+  delay(240000);
 }
 
 void loop() {
@@ -233,7 +242,7 @@ void loop() {
   // Log readings to Serial Monitor
   Serial.print("Temp: ");
   Serial.print(temperature);
-  Serial.println(" Â°C");
+  Serial.println(" °C");
 
   Serial.print("Hum: ");
   Serial.print(humidity);
